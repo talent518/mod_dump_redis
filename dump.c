@@ -6,6 +6,7 @@
 #include <time.h>
 #include <math.h>
 #include <signal.h>
+#include <zlib.h>
 
 #include "redis.h"
 
@@ -13,6 +14,107 @@ volatile bool is_running = true;
 
 void sig_handle(int sig) {
 	is_running = false;
+}
+
+typedef struct _php_zlib_buffer {
+	char *data;
+	char *aptr;
+	size_t used;
+	size_t free;
+	size_t size;
+} php_zlib_buffer;
+
+#define PHP_ZLIB_ENCODING_RAW		-0xf
+#define PHP_ZLIB_ENCODING_GZIP		0x1f
+#define PHP_ZLIB_ENCODING_DEFLATE	0x0f
+#define PHP_ZLIB_ENCODING_ANY		0x2f
+
+static inline int php_zlib_inflate_rounds(z_stream *Z, size_t max, char **buf, size_t *len)
+{
+	int status, round = 0;
+	php_zlib_buffer buffer = {NULL, NULL, 0, 0, 0};
+
+	*buf = NULL;
+	*len = 0;
+
+	buffer.size = (max && (max < Z->avail_in)) ? max : Z->avail_in;
+
+	do {
+		if ((max && (max <= buffer.used)) || !(buffer.aptr = realloc(buffer.data, buffer.size))) {
+			status = Z_MEM_ERROR;
+		} else {
+			buffer.data = buffer.aptr;
+			Z->avail_out = buffer.free = buffer.size - buffer.used;
+			Z->next_out = (Bytef *) buffer.data + buffer.used;
+			status = inflate(Z, Z_NO_FLUSH);
+
+			buffer.used += buffer.free - Z->avail_out;
+			buffer.free = Z->avail_out;
+			buffer.size += (buffer.size >> 3) + 1;
+		}
+	} while ((Z_BUF_ERROR == status || (Z_OK == status && Z->avail_in)) && ++round < 100);
+
+	if (status == Z_STREAM_END) {
+		buffer.data = realloc(buffer.data, buffer.used + 1);
+		buffer.data[buffer.used] = '\0';
+		*buf = buffer.data;
+		*len = buffer.used;
+	} else {
+		if (buffer.data) {
+			free(buffer.data);
+		}
+		/* HACK: See zlib/examples/zpipe.c inf() function for explanation. */
+		/* This works as long as this function is not used for streaming. Required to catch very short invalid data. */
+		status = (status == Z_OK) ? Z_DATA_ERROR : status;
+	}
+	return status;
+}
+
+static voidpf php_zlib_alloc(voidpf opaque, uInt items, uInt size) {
+	return (voidpf) calloc(items, size);
+}
+
+static void php_zlib_free(voidpf opaque, voidpf address) {
+	free((void*)address);
+}
+
+static bool php_zlib_decode(const char *in_buf, size_t in_len, char **out_buf, size_t *out_len, int encoding, size_t max_len) {
+	int status = Z_DATA_ERROR;
+	z_stream Z;
+
+	memset(&Z, 0, sizeof(z_stream));
+	Z.zalloc = php_zlib_alloc;
+	Z.zfree = php_zlib_free;
+
+	if (in_len) {
+retry_raw_inflate:
+		status = inflateInit2(&Z, encoding);
+		if (Z_OK == status) {
+			Z.next_in = (Bytef *) in_buf;
+			Z.avail_in = in_len + 1; /* NOTE: data must be zero terminated */
+
+			switch (status = php_zlib_inflate_rounds(&Z, max_len, out_buf, out_len)) {
+				case Z_STREAM_END:
+					inflateEnd(&Z);
+					return true;
+
+				case Z_DATA_ERROR:
+					/* raw deflated data? */
+					if (PHP_ZLIB_ENCODING_ANY == encoding) {
+						inflateEnd(&Z);
+						encoding = PHP_ZLIB_ENCODING_RAW;
+						goto retry_raw_inflate;
+					}
+			}
+			inflateEnd(&Z);
+		}
+	}
+
+	*out_buf = NULL;
+	*out_len = 0;
+
+	fprintf(stderr, "zlib error: %s", zError(status));
+	return false;
 }
 
 bool redis_lpop_int(redis_t *redis, const char *key, long int *value) {
@@ -37,7 +139,7 @@ int main(int argc, const char *argv[]) {
 	char *key = "apacheDump";
 	char keybuf[256];
 	long int nextId = 0;
-	char *str;
+	char *str, *encoding = NULL;
 	int size, exists;
 
 	while((opt = getopt(argc, (char**) argv, "h:p:a:n:k:vd?")) != -1) {
@@ -94,7 +196,14 @@ int main(int argc, const char *argv[]) {
 		if(!redis_send(&redis, "ss", "hgetall", keybuf)) goto end;
 		if(!redis_recv(&redis, REDIS_FLAG_MULTI)) goto end;
 
+		if(encoding) {
+			free(encoding);
+			encoding = NULL;
+		}
 		for(i = 0; i < redis.data.sz; i += 2) {
+			if(!strcmp(redis.data.data[i].str, "contentEncoding") && redis.data.data[i+1].sz > 0) {
+				encoding = strndup(redis.data.data[i+1].str, redis.data.data[i+1].sz);
+			}
 			printf("\033[32m");
 			fwrite(redis.data.data[i].str, 1, redis.data.data[i].sz, stdout);
 			printf("(%d):\033[0m\n", redis.data.data[i+1].sz);
@@ -118,7 +227,23 @@ int main(int argc, const char *argv[]) {
 		if(!redis_get_ex(&redis, keybuf, &str, &size)) goto end;
 		if(size > 0) {
 			printf("\033[32mresponseText(%d):\033[0m\n", size);
-			fwrite(str, 1, size, stdout);
+			char *out = NULL;
+			size_t outlen = 0;
+			if(!encoding) {
+				fwrite(str, 1, size, stdout);
+			} else if(!strcmp(encoding, "gzip")) {
+				if(php_zlib_decode(str, size, &out, &outlen, PHP_ZLIB_ENCODING_GZIP, 0)) {
+					fwrite(out, 1, outlen, stdout);
+					free(out);
+				}
+			} else if(!strcmp(encoding, "deflate")) {
+				if(php_zlib_decode(str, size, &out, &outlen, PHP_ZLIB_ENCODING_DEFLATE, 0)) {
+					fwrite(out, 1, outlen, stdout);
+					free(out);
+				}
+			} else {
+				fwrite(str, 1, size, stdout);
+			}
 			printf("\n");
 		}
 		
@@ -130,6 +255,8 @@ int main(int argc, const char *argv[]) {
 end:
 	redis_close(&redis);
 	redis_destory(&redis);
+
+	if(encoding) free(encoding);
 
 	return 0;
 

@@ -105,6 +105,7 @@ int redis_send(redis_t *redis, const char *format, ...) {
 		switch(*p) {
 			case 's': {
 				ptr = va_arg(ap, const char*);
+				if(ptr == NULL) ptr = "";
 				n = strlen(ptr);
 				REDIS_DEBUG printf("> $%d\n> %s\n", n, ptr);
 				fprintf(redis->fp, "$%d\r\n%s\r\n", n, ptr);
@@ -112,6 +113,7 @@ int redis_send(redis_t *redis, const char *format, ...) {
 			}
 			case 'S': {
 				ptr = va_arg(ap, const char*);
+				if(ptr == NULL) ptr = "";
 				n = va_arg(ap, int);
 				REDIS_DEBUG {
 					printf("> $%d\n> ", n);
@@ -201,9 +203,7 @@ static int _redis_recv(redis_t *redis, char flag, redis_data_t *data) {
 			break;
 		case '$':
 			data->sz = atoi(redis->buf + 1);
-			if(data->sz <= 0) {
-				data->str = NULL;
-			} else {
+			if(data->sz >= 0) {
 				data->str = (char*) malloc(data->sz+2);
 				i = fread(data->str, 1, data->sz+2, redis->fp);
 				if(i != data->sz+2) {
@@ -229,9 +229,16 @@ static int _redis_recv(redis_t *redis, char flag, redis_data_t *data) {
 		case ':':
 			data->l = strtol(redis->buf + 1, NULL, 10);
 			break;
-		default:
+		case '-':
+			data->str = strdup(redis->buf + 5);
+			data->sz = strlen(data->str);
+			break;
+		case '+':
 			data->str = strdup(redis->buf + 1);
 			data->sz = strlen(data->str);
+			break;
+		default:
+			printf("===%x===\n", data->c);
 			break;
 	}
 	return REDIS_TRUE;
@@ -410,10 +417,7 @@ int redis_close(redis_t *redis) {
 	redis_clean(redis);
 
 	if(redis->fp) {
-		if(fclose(redis->fp)) {
-			perror("FCLOSE");
-			return REDIS_FALSE;
-		}
+		fclose(redis->fp);
 
 		redis->fp = NULL;
 	}

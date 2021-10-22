@@ -289,7 +289,7 @@ static void dump_redis_record_full_and_response(request_rec *r, dump_redis_confi
 	gettimeofday(&tv, NULL);
 	strtime_r(tv.tv_sec, tv.tv_usec, createTime, sizeof(createTime));
 
-	if(!redis_send(&m->redis, "sssssdsssssssssdsSsSsSsssfss", "hset", keybuf,
+	if(!redis_send(&m->redis, "sssssdsssssssssdsSsSsSsssfssssssss", "hset", keybuf,
 		"scheme", ap_http_scheme(r),
 		"port", r->server->addrs->host_port,
 		"protocol", r->protocol,
@@ -302,7 +302,10 @@ static void dump_redis_record_full_and_response(request_rec *r, dump_redis_confi
 		"ip", client_ip, client_ip_len,
 		"file", r->uri,
 		"runTime", (float) (m->currentTime - m->executeTime - r->request_time) / 1000000.0f,
-		isInsert ? "createTime" : "updateTime", createTime
+		isInsert ? "createTime" : "updateTime", createTime,
+		"contentType", (r->content_type ? r->content_type : apr_table_get(r->headers_out, "Content-Type")),
+		"contentEncoding", (r->content_encoding ? r->content_encoding : apr_table_get(r->headers_out, "Content-Encoding")),
+		"filename", r->filename
 	)) {
 		ap_log_rerror (APLOG_MARK, APLOG_ERR, 0, r, "REDIS ERROR(hset send): %s", redis_error(&m->redis));
 		return;
@@ -360,12 +363,7 @@ static int dump_redis_record(request_rec *r, dump_redis_config_rec *sec, BOOL is
 	sec->executeTime += (apr_time_now() - sec->currentTime);
 }
 
-static void dump_redis_insert_filter (request_rec *r) {
-	dump_redis_config_rec *sec = (dump_redis_config_rec *)ap_get_module_config (r->per_dir_config, &dump_redis_module);
-
-	if(!sec->enable)
-		return;
-
+static int dump_redis_is_filter(request_rec *r, dump_redis_config_rec *sec) {
 	rule_entry *rule, *rules = (rule_entry *) sec->rules->elts;
 	int flag = 0, i;
 	ap_regmatch_t regm[AP_MAX_REG_MATCH];
@@ -378,8 +376,17 @@ static void dump_redis_insert_filter (request_rec *r) {
 			break;
 		}
 	}
+	
+	return i==0 || flag;
+}
 
-	if(i==0 || flag) {
+static void dump_redis_insert_filter (request_rec *r) {
+	dump_redis_config_rec *sec = (dump_redis_config_rec *)ap_get_module_config (r->per_dir_config, &dump_redis_module);
+
+	if(!sec->enable)
+		return;
+
+	if(dump_redis_is_filter(r, sec)) {
 		ap_add_input_filter(dump_redis_filter_name, NULL, r, r->connection);
 		ap_add_output_filter(dump_redis_filter_name, NULL, r, r->connection);
 	}

@@ -4,4 +4,4 @@ DumpRedisPort 6379
 DumpRedisDatabase 0
 DumpRedisKey exampleDump
 DumpRedisEnable On
-DumpMysqlRule \.(php|css|html)$ #多个用半角空格隔开或多个语句
+DumpRedisRule \.(php|css|html)$
