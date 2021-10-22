@@ -1,0 +1,2 @@
+# mod_dump_redis
+基于apache模块实现的请求详情数据的抓取并存储到redis
