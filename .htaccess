@@ -1,0 +1,7 @@
+DumpRedisHost "127.0.0.1"
+DumpRedisPort 6379
+# DumpRedisAuth "123"
+DumpRedisDatabase 0
+DumpRedisKey exampleDump
+DumpRedisEnable On
+DumpMysqlRule \.(php|css|html)$ #多个用半角空格隔开或多个语句
