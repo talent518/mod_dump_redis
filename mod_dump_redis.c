@@ -215,7 +215,6 @@ static void dump_redis_record_full_and_response(request_rec *r, dump_redis_confi
 	const apr_array_header_t *arr;
 	char *requestHeader, *responseHeader, *ptr, *client_ip;
 	unsigned long requestHeaderLength=0, responseHeaderLength=0;
-	unsigned long requestDateline;
 	unsigned long uri_len, file_len;
 	unsigned long method_len;
 	unsigned long client_ip_len;
@@ -225,8 +224,7 @@ static void dump_redis_record_full_and_response(request_rec *r, dump_redis_confi
 	struct timeval tv = {0, 0};
 	char requestTime[32], createTime[32];
 
-	requestDateline = (unsigned long)apr_time_sec(r->request_time);
-	strtime_r(requestDateline, r->request_time % 1000000, requestTime, sizeof(requestTime));
+	strtime_r(apr_time_sec(r->request_time), r->request_time % 1000000, requestTime, sizeof(requestTime));
 
 	// get request header info
 	arr = apr_table_elts(r->headers_in);
@@ -291,13 +289,12 @@ static void dump_redis_record_full_and_response(request_rec *r, dump_redis_confi
 	gettimeofday(&tv, NULL);
 	strtime_r(tv.tv_sec, tv.tv_usec, createTime, sizeof(createTime));
 
-	if(!redis_send(&m->redis, "sssssdsssssssdsssdsSsSsSsssfsdss", "hset", keybuf,
+	if(!redis_send(&m->redis, "sssssdsssssssssdsSsSsSsssfss", "hset", keybuf,
 		"scheme", ap_http_scheme(r),
 		"port", r->server->addrs->host_port,
 		"protocol", r->protocol,
 		"url", r->unparsed_uri,
 		"method", r->method,
-		"requestDateline", requestDateline,
 		"requestTime", requestTime,
 		"responseCode", r->status,
 		"requestHeader", requestHeader, requestHeaderLength,
@@ -305,7 +302,6 @@ static void dump_redis_record_full_and_response(request_rec *r, dump_redis_confi
 		"ip", client_ip, client_ip_len,
 		"file", r->uri,
 		"runTime", (float) (m->currentTime - m->executeTime - r->request_time) / 1000000.0f,
-		isInsert ? "dateline" : "updateDateline", tv.tv_sec,
 		isInsert ? "createTime" : "updateTime", createTime
 	)) {
 		ap_log_rerror (APLOG_MARK, APLOG_ERR, 0, r, "REDIS ERROR(hset send): %s", redis_error(&m->redis));
