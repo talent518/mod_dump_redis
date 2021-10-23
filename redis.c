@@ -407,7 +407,7 @@ void _redis_clean(redis_data_t *data) {
 		case ':':
 			break;
 		default:
-			if(data->sz > 0) free(data->str);
+			if(data->str) free(data->str);
 			break;
 	}
 	memset(data, 0, sizeof(redis_data_t));
