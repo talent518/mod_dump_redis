@@ -19,21 +19,7 @@
 #include <sys/time.h>
 #include <time.h>
 #include <stdio.h>
-
-#ifndef BOOL
-#define BOOL int
-#endif
-
-#ifndef TRUE
-#define TRUE 1
-#endif
-#ifndef FALSE
-#define FALSE 0
-#endif
-
-#ifndef MIN
-#define MIN(a,b) (((a)<(b))?(a):(b))
-#endif
+#include <stdbool.h>
 
 #define APR_ARRAY_FOREACH_INIT() apr_table_entry_t *apr_foreach_elts;int apr_foreach_i;char *key,*val
 
@@ -60,12 +46,8 @@ typedef struct {
 	char *key;                  /* redis store to key */
 	int  enable;                /* do we bother trying to auth at all? */
 	long int insertId;               /* insert after dumpId for value */
-	char *postText;             /* post submit data */
-	int postTextLength;         /* post submit data length */
-	BOOL isFirstPostBucketRead; /* is first post bucket read */
 	apr_time_t currentTime;
 	apr_time_t executeTime;
-	BOOL isFirstResponseBucketRead; /* is first response bucket read */
 	apr_array_header_t *rules;	/* dump rule array */
 } dump_redis_config_rec;
 
@@ -77,40 +59,25 @@ typedef struct {
 	ap_regex_t *regexp;
 } rule_entry;
 
-typedef struct {
-	apr_bucket_brigade *bb;
-} input_context;
-
 static const char dump_redis_filter_name[] = "dump_redis";
 
 static apr_status_t dump_redis_db_cleanup (void *data) {
 	dump_redis_config_rec *m = data;
 	char keybuf[256];
 
-	if(m->insertId == 0) goto end;
-
-	if(!redis_send(&m->redis, "ssD", "rpush", m->key ? m->key : "apacheDump", m->insertId)) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, "REDIS ERROR(rpush send): %s", redis_error(&m->redis));
-		goto end;
-	}
-	if(!redis_recv(&m->redis, REDIS_FLAG_INT)) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, "REDIS ERROR(rpush recv): %s", redis_error(&m->redis));
-		goto end;
-	}
-
-end:
 	redis_close(&m->redis);
+
 	return 0;
 }
 
-static BOOL open_db_handle(request_rec *r, dump_redis_config_rec *m) {
+static bool open_db_handle(request_rec *r, dump_redis_config_rec *m) {
 	if(m->redis.fp) {
-		if(redis_ping(&m->redis)) return TRUE;
+		if(redis_ping(&m->redis)) return true;
 
 		redis_close(&m->redis);
 	}
 
-	if(!redis_init(&m->redis, 0)) return FALSE;
+	if(!redis_init(&m->redis, 0)) return false;
 
 	if(!redis_connect(&m->redis, m->host, m->port)) {
 		ap_log_rerror (APLOG_MARK, APLOG_ERR, 0, r, "REDIS ERROR(connect): %s", strerror(errno));
@@ -127,13 +94,24 @@ static BOOL open_db_handle(request_rec *r, dump_redis_config_rec *m) {
 		goto err;
 	}
 
+	if(m->insertId <= 0) {
+		char keybuf[256];
+
+		snprintf(keybuf, sizeof(keybuf), "%s:incr", m->key ? m->key : "apacheDump");
+
+		if(!redis_incrby(&m->redis, keybuf, 1, &m->insertId)) {
+			ap_log_rerror (APLOG_MARK, APLOG_ERR, 0, r, "REDIS ERROR(incrby): %s", redis_error(&m->redis));
+			goto err;
+		}
+	}
+
 	apr_pool_cleanup_register(r->pool, (void *)m, dump_redis_db_cleanup, apr_pool_cleanup_null);
 
-	return TRUE;
+	return true;
 
 err:
 	redis_close(&m->redis);
-	return FALSE;
+	return false;
 }
 
 static void *create_dump_redis_dir_config (apr_pool_t *p, char *d)
@@ -149,13 +127,9 @@ static void *create_dump_redis_dir_config (apr_pool_t *p, char *d)
 	m->auth = NULL;
 	m->database = 0;
 	m->key = NULL;
-	m->enable = FALSE;     /* not enable on by default */
-	m->postText = NULL;
-	m->postTextLength = 0;
+	m->enable = false;     /* not enable on by default */
 	m->insertId = 0;
 	m->rules = apr_array_make(p, 20, sizeof(rule_entry));
-	m->isFirstPostBucketRead = TRUE;
-	m->isFirstResponseBucketRead = TRUE;
 	m->currentTime=0;
 	m->executeTime=0;
 
@@ -211,7 +185,7 @@ char *nowtime_r(char *buf, int buflen) {
 	return buf;
 }
 
-static void dump_redis_record_full_and_response(request_rec *r, dump_redis_config_rec *m) {
+static bool dump_redis_record_full_and_response(request_rec *r, dump_redis_config_rec *m) {
 	const apr_array_header_t *arr;
 	char *requestHeader, *responseHeader, *ptr, *client_ip;
 	unsigned long requestHeaderLength=0, responseHeaderLength=0;
@@ -220,7 +194,6 @@ static void dump_redis_record_full_and_response(request_rec *r, dump_redis_confi
 	unsigned long client_ip_len;
 	APR_ARRAY_FOREACH_INIT();
 	char keybuf[256];
-	BOOL isInsert = FALSE;
 	struct timeval tv = {0, 0};
 	char requestTime[32], createTime[32];
 
@@ -274,16 +247,6 @@ static void dump_redis_record_full_and_response(request_rec *r, dump_redis_confi
 		client_ip_len = strlen(client_ip);
 	}
 
-	if(m->insertId == 0) {
-		snprintf(keybuf, sizeof(keybuf), "%s:incr", m->key ? m->key : "apacheDump");
-
-		if(!redis_incrby(&m->redis, keybuf, 1, &m->insertId)) {
-			ap_log_rerror (APLOG_MARK, APLOG_ERR, 0, r, "REDIS ERROR(incrby): %s", redis_error(&m->redis));
-			return;
-		}
-		isInsert = TRUE;
-	}
-
 	snprintf(keybuf, sizeof(keybuf), "%s:%ld", m->key ? m->key : "apacheDump", m->insertId);
 
 	gettimeofday(&tv, NULL);
@@ -302,36 +265,24 @@ static void dump_redis_record_full_and_response(request_rec *r, dump_redis_confi
 		"ip", client_ip, client_ip_len,
 		"file", r->uri,
 		"runTime", (float) (m->currentTime - m->executeTime - r->request_time) / 1000000.0f,
-		isInsert ? "createTime" : "updateTime", createTime,
+		"createTime", createTime,
 		"contentType", (r->content_type ? r->content_type : apr_table_get(r->headers_out, "Content-Type")),
 		"contentEncoding", (r->content_encoding ? r->content_encoding : apr_table_get(r->headers_out, "Content-Encoding")),
 		"filename", r->filename
 	)) {
 		ap_log_rerror (APLOG_MARK, APLOG_ERR, 0, r, "REDIS ERROR(hset send): %s", redis_error(&m->redis));
-		return;
+		return false;
 	}
-
 	if(!redis_recv(&m->redis, REDIS_FLAG_INT)) {
 		ap_log_rerror (APLOG_MARK, APLOG_ERR, 0, r, "REDIS ERROR(hset recv): %s", redis_error(&m->redis));
-		return;
+		return false;
 	}
+
+	return true;
 }
 
-static void dump_redis_record_post_or_response(request_rec *r, dump_redis_config_rec *m, BOOL is_post, char *buffer, int buffer_length) {
+static void dump_redis_record_post_or_response(request_rec *r, dump_redis_config_rec *m, bool is_post, char *buffer, int buffer_length) {
 	char keybuf[256];
-	BOOL isInsert = FALSE;
-
-	if(buffer_length <= 0) return;
-
-	if(m->insertId == 0) {
-		snprintf(keybuf, sizeof(keybuf), "%s:incr", m->key ? m->key : "apacheDump");
-
-		if(!redis_incrby(&m->redis, keybuf, 1, &m->insertId)) {
-			ap_log_rerror (APLOG_MARK, APLOG_ERR, 0, r, "REDIS ERROR(incrby): %s", redis_error(&m->redis));
-			return;
-		}
-		isInsert = TRUE;
-	}
 
 	snprintf(keybuf, sizeof(keybuf), "%s:%ld:%s", m->key ? m->key : "apacheDump", m->insertId, is_post ? "post" : "response");
 
@@ -345,21 +296,23 @@ static void dump_redis_record_post_or_response(request_rec *r, dump_redis_config
 	}
 }
 
-static int dump_redis_record(request_rec *r, dump_redis_config_rec *sec, BOOL is_post, char *buffer, apr_size_t len) {
-	BOOL is_first = is_post ? sec->isFirstPostBucketRead : sec->isFirstResponseBucketRead;
-
-	sec->currentTime=apr_time_now();
-	if(open_db_handle(r,sec)) {
-		if(is_first) {
-			if(!is_post) dump_redis_record_full_and_response(r, sec);
-			dump_redis_record_post_or_response(r, sec, is_post, buffer, len);
-
-			if(is_post) sec->isFirstPostBucketRead = FALSE;
-			else sec->isFirstResponseBucketRead = FALSE;
-		} else {
-			dump_redis_record_post_or_response(r, sec, is_post, buffer, len);
-		}
+static bool dump_redis_record_insert_id(request_rec *r, dump_redis_config_rec *m) {
+	if(!redis_send(&m->redis, "ssD", "rpush", m->key ? m->key : "apacheDump", m->insertId)) {
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "REDIS ERROR(rpush send): %s", redis_error(&m->redis));
+		return false;
 	}
+
+	if(!redis_recv(&m->redis, REDIS_FLAG_INT)) {
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "REDIS ERROR(rpush recv): %s", redis_error(&m->redis));
+		return false;
+	}
+
+	return true;
+}
+
+static void dump_redis_record(request_rec *r, dump_redis_config_rec *sec, bool is_post, char *buffer, apr_size_t len) {
+	sec->currentTime = apr_time_now();
+	if(open_db_handle(r,sec)) dump_redis_record_post_or_response(r, sec, is_post, buffer, len);
 	sec->executeTime += (apr_time_now() - sec->currentTime);
 }
 
@@ -378,6 +331,18 @@ static int dump_redis_is_filter(request_rec *r, dump_redis_config_rec *sec) {
 	}
 	
 	return i==0 || flag;
+}
+
+static int dump_redis_log_transaction(request_rec *r) {
+	dump_redis_config_rec *m = (dump_redis_config_rec *)ap_get_module_config (r->per_dir_config, &dump_redis_module);
+
+	if(!open_db_handle(r,m)) goto end;
+	
+	if(!dump_redis_record_full_and_response(r, m)) goto end;
+	if(!dump_redis_record_insert_id(r, m)) goto end;
+
+end:
+	return OK;
 }
 
 static void dump_redis_insert_filter (request_rec *r) {
@@ -400,25 +365,24 @@ static int dump_redis_input_filter (ap_filter_t *f, apr_bucket_brigade *bb, ap_i
 	apr_bucket *b,*bh;
 	apr_size_t len = 0;
 
-	input_context *ctx;
+	apr_bucket_brigade *ctx;
 
 	int ret;
 	char *buffer = NULL, *buf;
 
 	if(!(ctx = f->ctx)) {
-		f->ctx = ctx = apr_palloc(r->pool, sizeof(input_context));
-		ctx->bb = apr_brigade_create(r->pool, c->bucket_alloc);
+		f->ctx = ctx = apr_brigade_create(r->pool, c->bucket_alloc);
 	}
 
-	if(APR_BRIGADE_EMPTY(ctx->bb)) {
-		ret = ap_get_brigade(f->next, ctx->bb, mode, block, readbytes);
+	if(APR_BRIGADE_EMPTY(ctx)) {
+		ret = ap_get_brigade(f->next, ctx, mode, block, readbytes);
 
 		if(mode == AP_MODE_EATCRLF || ret != APR_SUCCESS)
 			return ret;
 	}
 
-	while(!APR_BRIGADE_EMPTY(ctx->bb)) {
-		b = APR_BRIGADE_FIRST(ctx->bb);
+	while(!APR_BRIGADE_EMPTY(ctx)) {
+		b = APR_BRIGADE_FIRST(ctx);
 
 		if(APR_BUCKET_IS_EOS(b)) {
 			APR_BUCKET_REMOVE(b);
@@ -426,11 +390,10 @@ static int dump_redis_input_filter (ap_filter_t *f, apr_bucket_brigade *bb, ap_i
 			break;
 		}
 
-		ret=apr_bucket_read(b, (const char **) &buffer, &len, block);
-		if(ret != APR_SUCCESS)
-			return ret;
+		ret = apr_bucket_read(b, (const char **) &buffer, &len, block);
+		if(ret != APR_SUCCESS) return ret;
 
-		dump_redis_record(r, sec, TRUE, buffer, len);
+		if(len > 0) dump_redis_record(r, sec, true, buffer, len);
 
 		buf = apr_bucket_alloc(len, c->bucket_alloc);
 		memcpy(buf,buffer,len);
@@ -464,10 +427,9 @@ static int dump_redis_output_filter (ap_filter_t *f, apr_bucket_brigade *bb) {
 			continue;
 		}
 		ret = apr_bucket_read(b, (const char **) &buffer, &len, APR_BLOCK_READ);
-		if(ret != APR_SUCCESS)
-			return ret;
+		if(ret != APR_SUCCESS) return ret;
 
-		dump_redis_record(r, sec, FALSE, buffer, len);
+		if(len > 0) dump_redis_record(r, sec, false, buffer, len);
 
 		buf = apr_bucket_alloc(len, c->bucket_alloc);
 		memcpy(buf, buffer, len);
@@ -481,6 +443,7 @@ static int dump_redis_output_filter (ap_filter_t *f, apr_bucket_brigade *bb) {
 }
 
 static void dump_redis_register_hooks(apr_pool_t *p) {
+	ap_hook_log_transaction(dump_redis_log_transaction,NULL,NULL,APR_HOOK_FIRST);
 	ap_hook_insert_filter(dump_redis_insert_filter, NULL, NULL, APR_HOOK_LAST);
 	ap_register_input_filter(dump_redis_filter_name, dump_redis_input_filter, NULL, AP_FTYPE_RESOURCE);
 	ap_register_output_filter(dump_redis_filter_name, dump_redis_output_filter, NULL, AP_FTYPE_RESOURCE);
