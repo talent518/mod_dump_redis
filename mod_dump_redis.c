@@ -336,6 +336,8 @@ static int dump_redis_is_filter(request_rec *r, dump_redis_config_rec *sec) {
 static int dump_redis_log_transaction(request_rec *r) {
 	dump_redis_config_rec *m = (dump_redis_config_rec *)ap_get_module_config (r->per_dir_config, &dump_redis_module);
 
+	if(!m->enable || !dump_redis_is_filter(r, m)) goto end;
+
 	if(!open_db_handle(r,m)) goto end;
 	
 	if(!dump_redis_record_full_and_response(r, m)) goto end;

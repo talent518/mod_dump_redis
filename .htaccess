@@ -4,4 +4,4 @@ DumpRedisPort 6379
 DumpRedisDatabase 0
 DumpRedisKey exampleDump
 DumpRedisEnable On
-DumpRedisRule \.(php|css|html)$
+DumpRedisRule \.(php|js|css|html)$

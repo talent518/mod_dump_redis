@@ -210,6 +210,8 @@ int main(int argc, const char *argv[]) {
 			fwrite(redis.data.data[i+1].str, 1, redis.data.data[i+1].sz, stdout);
 			printf("\n");
 		}
+		fflush(stdout);
+		fflush(stderr);
 		
 		if(!redis_del(&redis, keybuf, &exists)) goto end;
 		
@@ -220,6 +222,8 @@ int main(int argc, const char *argv[]) {
 			fwrite(str, 1, size, stdout);
 			printf("\n");
 		}
+		fflush(stdout);
+		fflush(stderr);
 		
 		if(!redis_del(&redis, keybuf, &exists)) goto end;
 		
@@ -246,6 +250,8 @@ int main(int argc, const char *argv[]) {
 			}
 			printf("\n");
 		}
+		fflush(stdout);
+		fflush(stderr);
 		
 		if(!redis_del(&redis, keybuf, &exists)) goto end;
 	}
