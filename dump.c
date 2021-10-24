@@ -3,9 +3,11 @@
 #include <string.h>
 #include <stdbool.h>
 #include <unistd.h>
+#include <sys/time.h>
 #include <time.h>
 #include <math.h>
 #include <signal.h>
+#include <unistd.h>
 #include <zlib.h>
 
 #include "redis.h"
@@ -127,6 +129,14 @@ bool redis_lpop_int(redis_t *redis, const char *key, long int *value) {
 	return true;
 }
 
+double microtime() {
+	struct timeval tv = {0, 0};
+
+	gettimeofday(&tv, NULL);
+	
+	return (double) tv.tv_sec + (double) tv.tv_usec / 1000000.0f;
+}
+
 int main(int argc, const char *argv[]) {
 	const char *host = "127.0.0.1";
 	int port = 6379;
@@ -141,6 +151,11 @@ int main(int argc, const char *argv[]) {
 	long int nextId = 0;
 	char *str, *encoding = NULL;
 	int size, exists;
+	double t, t2, t3;
+	const char *color_red = "\033[31m";
+	const char *color_green = "\033[32m";
+	const char *color_yellow = "\033[33m";
+	const char *color_cls = "\033[0m";
 
 	while((opt = getopt(argc, (char**) argv, "h:p:a:n:k:vd?")) != -1) {
 		switch(opt) {
@@ -175,9 +190,14 @@ int main(int argc, const char *argv[]) {
 	if(*auth && !redis_auth(&redis, auth)) goto end;
 	if(!redis_select(&redis, database)) goto end;
 
+	if(!isatty(1)) {
+		color_red = color_green = color_yellow = color_cls = "";
+	}
+
 	signal(SIGINT, sig_handle);
 	signal(SIGTERM, sig_handle);
 
+	t = microtime();
 	while(is_running) {
 		if(!redis_lpop_int(&redis, key, &nextId)) goto end;
 		
@@ -185,12 +205,14 @@ int main(int argc, const char *argv[]) {
 			usleep(10000);
 			continue;
 		}
+
+		t2 = microtime();
 		
 		snprintf(keybuf, sizeof(keybuf), "%s:%ld", key, nextId);
 
-		printf("\033[33m#######################################################\033[0m\n");
-		printf("\033[31m##### %s #####\033[0m\n", keybuf);
-		printf("\033[33m#######################################################\033[0m\n");
+		printf("%s#####################################################################%s\n", color_yellow, color_cls);
+		printf("%s##### %s #####%s\n", color_red, keybuf, color_cls);
+		printf("%s#####################################################################%s\n", color_yellow, color_cls);
 		
 	retry:
 		if(!redis_send(&redis, "ss", "hgetall", keybuf)) goto end;
@@ -204,9 +226,9 @@ int main(int argc, const char *argv[]) {
 			if(!strcmp(redis.data.data[i].str, "contentEncoding") && redis.data.data[i+1].sz > 0) {
 				encoding = strndup(redis.data.data[i+1].str, redis.data.data[i+1].sz);
 			}
-			printf("\033[32m");
+			printf("%s", color_green);
 			fwrite(redis.data.data[i].str, 1, redis.data.data[i].sz, stdout);
-			printf("(%d):\033[0m\n", redis.data.data[i+1].sz);
+			printf("(%d):%s\n", redis.data.data[i+1].sz, color_cls);
 			fwrite(redis.data.data[i+1].str, 1, redis.data.data[i+1].sz, stdout);
 			printf("\n");
 		}
@@ -218,7 +240,7 @@ int main(int argc, const char *argv[]) {
 		snprintf(keybuf, sizeof(keybuf), "%s:%ld:post", key, nextId);
 		if(!redis_get_ex(&redis, keybuf, &str, &size)) goto end;
 		if(size > 0) {
-			printf("\033[32mpostText(%d):\033[0m\n", size);
+			printf("%spostText(%d):%s\n", color_green, size, color_cls);
 			fwrite(str, 1, size, stdout);
 			printf("\n");
 		}
@@ -230,7 +252,7 @@ int main(int argc, const char *argv[]) {
 		snprintf(keybuf, sizeof(keybuf), "%s:%ld:response", key, nextId);
 		if(!redis_get_ex(&redis, keybuf, &str, &size)) goto end;
 		if(size > 0) {
-			printf("\033[32mresponseText(%d):\033[0m\n", size);
+			printf("%sresponseText(%d):%s\n", color_green, size, color_cls);
 			char *out = NULL;
 			size_t outlen = 0;
 			if(!encoding) {
@@ -254,6 +276,15 @@ int main(int argc, const char *argv[]) {
 		fflush(stderr);
 		
 		if(!redis_del(&redis, keybuf, &exists)) goto end;
+
+		t3 = microtime();
+
+		printf("%s=====================================================================%s\n", color_yellow, color_cls);
+		printf("%sDump id:%s %ld\n%sWait time:%s %lf\n%sRun time:%s %lf\n", color_red, color_cls, nextId, color_red, color_cls, t2 - t, color_red, color_cls, t3 - t2);
+		fflush(stdout);
+		fflush(stderr);
+
+		t = microtime();
 	}
 
 	if(!redis_quit(&redis)) goto end;
