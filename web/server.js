@@ -108,14 +108,14 @@ const getPost = function(key, id, info) {
 const getInfo = function(key, id) {
 	redis.hgetall(key+':'+id, function(err, result) {
 		if(err) nextId(key, err);
-		else {
+		else if(result) {
 			result.responseCode = parseInt(result.responseCode);
 			result.serverPort = parseInt(result.serverPort);
 			result.runTime = parseFloat(result.runTime);
 			result.dumpId = id;
 			
 			getPost(key, id, result);
-		}
+		} else getPost(key, id, {dumpId:id});
 	});
 };
 
@@ -123,11 +123,8 @@ const popId = function(key) {
 	runs[key] = true;
 
 	redis.lpop(key, function(err, result) {
-		if(err) nextId(key, err);
-		else {
-			if(result) getInfo(key, result);
-			else nextId(key, err, result);
-		}
+		if(result) getInfo(key, result);
+		else nextId(key, err, result);
 	});
 };
 
