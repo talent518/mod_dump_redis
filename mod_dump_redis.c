@@ -252,9 +252,10 @@ static bool dump_redis_record_full_and_response(request_rec *r, dump_redis_confi
 	gettimeofday(&tv, NULL);
 	strtime_r(tv.tv_sec, tv.tv_usec, createTime, sizeof(createTime));
 
-	if(!redis_send(&m->redis, "sssssdsssssssssdsSsSsSsssfssssssss", "hset", keybuf,
+	if(!redis_send(&m->redis, "sssssssdsssssssssdsSsSsSsssfssssssss", "hset", keybuf,
 		"scheme", ap_http_scheme(r),
-		"port", r->server->addrs->host_port,
+		"serverName", ap_get_server_name(r),
+		"serverPort", ap_get_server_port(r),
 		"protocol", r->protocol,
 		"url", r->unparsed_uri,
 		"method", r->method,
