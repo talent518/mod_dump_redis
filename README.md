@@ -1,39 +1,39 @@
 # mod_dump_redis
-基于apache模块实现的请求详情数据的抓取并存储到redis
+The request detail data is captured and stored in redis based on the Apache module
 
 ### 1. DumpRedisHost
 DumpRedisHost <ipaddr>
 
-* database: redis的IP地址（类型：字符串）
+* ipaddr: IP address of redis (type: String)
 
 ### 2. DumpRedisPort
 DumpRedisPort <port>
 
-* database: redis的端口（类型：整数）
+* port: Redis port (type: integer)
 
 ### 3. DumpRedisAuth
 DumpRedisAuth <password>
 
-* database: redis的安全密码（类型：字符串）
+* password: Redis security password (type: String)
 
 ### 4. DumpRedisDatabase
 DumpRedisDatabase <database>
 
-* database: redis的数据库（类型：整数）
+* database: Redis database (type: integer)
 
 ### 5. DumpRedisKey
 DumpRedisKey <key>
 
-* key: 存储于redis中的key前缀
+* key: Key prefix stored in redis
 
 ### 6. DumpRedisEnable
 DumpRedisEnable <On|Off>
 
-* On: 启用
-* Off: 禁用
+* On: enable redis dump
+* Off: disable redis dump
 
 ### 7. DumpRedisRule
 DumpRedisRule <regex>...
 
-* regex: 正则表达式
+* regex: regular expression
 
