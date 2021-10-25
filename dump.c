@@ -232,8 +232,12 @@ int main(int argc, const char *argv[]) {
 			fwrite(redis.data.data[i+1].str, 1, redis.data.data[i+1].sz, stdout);
 			printf("\n");
 		}
-		fflush(stdout);
-		fflush(stderr);
+
+		if(redis.data.sz > 0) {
+			if(!redis_del(&redis, keybuf, &exists)) goto end;
+			fflush(stdout);
+			fflush(stderr);
+		}
 		
 		if(!redis_del(&redis, keybuf, &exists)) goto end;
 		
@@ -243,11 +247,11 @@ int main(int argc, const char *argv[]) {
 			printf("%spostText(%d):%s\n", color_green, size, color_cls);
 			fwrite(str, 1, size, stdout);
 			printf("\n");
+
+			if(!redis_del(&redis, keybuf, &exists)) goto end;
+			fflush(stdout);
+			fflush(stderr);
 		}
-		fflush(stdout);
-		fflush(stderr);
-		
-		if(!redis_del(&redis, keybuf, &exists)) goto end;
 		
 		snprintf(keybuf, sizeof(keybuf), "%s:%ld:response", key, nextId);
 		if(!redis_get_ex(&redis, keybuf, &str, &size)) goto end;
@@ -271,11 +275,11 @@ int main(int argc, const char *argv[]) {
 				fwrite(str, 1, size, stdout);
 			}
 			printf("\n");
+
+			if(!redis_del(&redis, keybuf, &exists)) goto end;
+			fflush(stdout);
+			fflush(stderr);
 		}
-		fflush(stdout);
-		fflush(stderr);
-		
-		if(!redis_del(&redis, keybuf, &exists)) goto end;
 
 		t3 = microtime();
 
