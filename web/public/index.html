@@ -91,12 +91,14 @@
                 sock.emit('join', {room:room,name:name});
                 $('#j-message-box').prepend('<p>' + time() + ' <span class="success">Connected</span></p>');
                 $('#j-connect').attr('disabled', true);
+                $('#j-room').attr('readonly', true);
                 $('#j-disconnect,#j-time,#j-submit').attr('disabled',false);
                 sock = this;
             });
             sock.on('disconnect', function() {
                 $('#j-message-box').prepend('<p>' + time() + ' <span class="info">Disconnected</span></p>');
                 $('#j-connect').attr('disabled', false);
+                $('#j-room').attr('readonly', false);
                 $('#j-disconnect,#j-time,#j-submit').attr('disabled', true);
                 sock.close();
                 sock = false;
@@ -124,7 +126,7 @@
             });
             sock.on('dump', function(msg) {
             	const $p = $('<div class="dump"></div>');
-            	const $p1 = $('<p></p>').html('<span class="right">' + msg.runTime + '</span>' + time() + ' <span class="bold">' + msg.method + '</span> ' + msg.scheme + '://' + msg.serverName + (msg.scheme === 'http' && msg.serverPort === 80 ? '' : (msg.scheme === 'https' && msg.serverPort === 443 ? '' : ':' + msg.serverPort)) + msg.url).click(function() {
+            	const $p1 = $('<p></p>').html('<span class="right">' + msg.runTime + '</span>' + time() + ' ' + msg.dumpId + ' <span class="bold">' + msg.method + '</span> ' + msg.scheme + '://' + msg.serverName + (msg.scheme === 'http' && msg.serverPort === 80 ? '' : (msg.scheme === 'https' && msg.serverPort === 443 ? '' : ':' + msg.serverPort)) + msg.url).click(function() {
             		$(this).next('.full').toggle();
             	}).appendTo($p);
             	const $p2 = $('<div class="full"></div>').appendTo($p);

@@ -83,7 +83,7 @@ const getResponse = function(key, id, info) {
 				result = zlib.inflateSync(result);
 			}
 
-			info.responseText = result.toString();
+			info.responseText = result ? result.toString() : '';
 			
 			redis.del(key+':'+id);
 			redis.del(key+':'+id+':'+'post');
@@ -95,10 +95,10 @@ const getResponse = function(key, id, info) {
 };
 
 const getPost = function(key, id, info) {
-	redis.get(key+':'+id+':post', function(err, result) {
+	redis.getBuffer(key+':'+id+':post', function(err, result) {
 		if(err) nextId(key, err, info);
 		else {
-			info.postText = result;
+			info.postText = result ? result.toString() : '';
 			
 			getResponse(key, id, info);
 		}
@@ -137,7 +137,7 @@ const nextId = function(key, err, info) {
 		if(info) popId(key);
 		else setTimeout(function() {
 			popId(key);
-		}, 100);
+		}, 10);
 	} else {
 		runs[key] = false;
 	}
