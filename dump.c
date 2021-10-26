@@ -290,6 +290,10 @@ int main(int argc, const char *argv[]) {
 
 		t = microtime();
 	}
+	
+	if(str) {
+		free(str);
+	}
 
 	if(!redis_quit(&redis)) goto end;
 

@@ -357,9 +357,11 @@ int redis_get_ex(redis_t *redis, const char *key, char **value, int *size) {
 	if(!redis_recv(redis, REDIS_FLAG_BULK)) return REDIS_FALSE;
 	if(size) *size = redis->data.sz;
 	if(value) {
-		if(redis->data.sz > 0) {
+		if(*value) free(*value);
+		if(redis->data.sz >= 0) {
 			*value = redis->data.str;
 			redis->data.sz = 0;
+			redis->data.str = NULL;
 		} else {
 			*value = NULL;
 		}
@@ -401,13 +403,21 @@ void _redis_clean(redis_data_t *data) {
 	switch(data->c) {
 		case '*':
 			for(i=0; i<data->sz; i++) _redis_clean(&data->data[i]);
-			if(data->sz > 0) free(data->data);
+			if(data->sz > 0) {
+				free(data->data);
+				data->sz = 0;
+				data->data = NULL;
+			}
 			break;
 		case '\0':
 		case ':':
 			break;
 		default:
-			if(data->str) free(data->str);
+			if(data->str) {
+				free(data->str);
+				data->sz = 0;
+				data->str = NULL;
+			}
 			break;
 	}
 	memset(data, 0, sizeof(redis_data_t));
