@@ -291,8 +291,14 @@ int main(int argc, const char *argv[]) {
 		t = microtime();
 	}
 	
+	if(encoding) {
+		free(encoding);
+		encoding = NULL;
+	}
+	
 	if(str) {
 		free(str);
+		str = NULL;
 	}
 
 	if(!redis_quit(&redis)) goto end;
