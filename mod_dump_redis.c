@@ -63,7 +63,6 @@ static const char dump_redis_filter_name[] = "dump_redis";
 
 static apr_status_t dump_redis_db_cleanup (void *data) {
 	dump_redis_config_rec *m = data;
-	char keybuf[256];
 
 	redis_close(&m->redis);
 
