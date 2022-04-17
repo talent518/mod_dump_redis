@@ -119,16 +119,6 @@ retry_raw_inflate:
 	return false;
 }
 
-bool redis_lpop_int(redis_t *redis, const char *key, long int *value) {
-	if(!redis_send(redis, "ss", "lpop", key)) return false;
-	if(!redis_recv(redis, REDIS_FLAG_BULK)) return false;
-	
-	if(redis->data.sz > 0) *value = strtol(redis->data.str, NULL, 10);
-	else *value = 0;
-
-	return true;
-}
-
 double microtime() {
 	struct timeval tv = {0, 0};
 
