@@ -214,7 +214,6 @@ int main(int argc, const char *argv[]) {
 		printf("%s##### %s #####%s\n", color_red, keybuf, color_cls);
 		printf("%s#####################################################################%s\n", color_yellow, color_cls);
 		
-	retry:
 		if(!redis_send(&redis, "ss", "hgetall", keybuf)) goto end;
 		if(!redis_recv(&redis, REDIS_FLAG_MULTI)) goto end;
 
@@ -313,7 +312,7 @@ end:
 
 usage:
 	fprintf(stderr,
-		"Usage: %s [options] [--] [cmd [arg [arg ...]]] [\\; cmd2 [arg2 [arg2...]]] ... \n"
+		"Usage: %s [options]\n"
 		"    options\n"
 		"        -h <host>            Server hostname (value: %s)\n"
 		"        -p <port>            Server port (value: %d)\n"
