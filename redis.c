@@ -127,8 +127,8 @@ int redis_send(redis_t *redis, const char *format, ...) {
 			}
 			CASE('d', d, "%d", int)
 			CASE('D', D, "%ld", long int)
-			CASE('f', f, "%lf", double)
-			CASE('F', F, "%lf", double)
+			CASE('f', f, "%lg", double)
+			CASE('F', F, "%lg", double)
 			CASE('u', u, "%u", unsigned int)
 			CASE('U', U, "%lu", unsigned long int)
 			default:
