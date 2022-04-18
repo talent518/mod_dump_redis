@@ -318,19 +318,18 @@ static void dump_redis_record(request_rec *r, dump_redis_config_rec *sec, bool i
 
 static int dump_redis_is_filter(request_rec *r, dump_redis_config_rec *sec) {
 	rule_entry *rule, *rules = (rule_entry *) sec->rules->elts;
-	int flag = 0, i;
+	int i;
 	ap_regmatch_t regm[AP_MAX_REG_MATCH];
 
 	for(i = 0; i < sec->rules->nelts; ++i) {
 		rule = &rules[i];
 
 		if(!ap_regexec(rule->regexp, r->uri, AP_MAX_REG_MATCH, regm, 0)) {
-			flag = 1;
-			break;
+			return 1;
 		}
 	}
 	
-	return i==0 || flag;
+	return i==0;
 }
 
 static int dump_redis_log_transaction(request_rec *r) {

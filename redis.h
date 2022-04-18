@@ -77,7 +77,7 @@ redis_t *redis_init(redis_t *redis, int flag);
     int redis_lpop_int(redis_t *redis, const char *key, long int *value);
 
    void  _redis_clean(redis_data_t *data);
-#define  redis_clean(redis)                  _redis_clean(&(redis)->data)
+#define  redis_clean(redis) _redis_clean(&(redis)->data)
     int  redis_close(redis_t *redis);
    void  redis_destory(redis_t *redis);
 
