@@ -140,7 +140,7 @@ int main(int argc, const char *argv[]) {
 	char keybuf[256];
 	long int nextId = 0;
 	char *str, *encoding = NULL;
-	int size, exists;
+	int size;
 	double t, t2, t3;
 	const char *color_red = "\033[31m";
 	const char *color_green = "\033[32m";
@@ -222,24 +222,12 @@ int main(int argc, const char *argv[]) {
 			printf("\n");
 		}
 
-		if(redis.data.sz > 0) {
-			if(!redis_del(&redis, keybuf, &exists)) goto end;
-			fflush(stdout);
-			fflush(stderr);
-		}
-		
-		if(!redis_del(&redis, keybuf, &exists)) goto end;
-		
 		snprintf(keybuf, sizeof(keybuf), "%s:%ld:post", key, nextId);
 		if(!redis_get_ex(&redis, keybuf, &str, &size)) goto end;
 		if(size > 0) {
 			printf("%spostText(%d):%s\n", color_green, size, color_cls);
 			fwrite(str, 1, size, stdout);
 			printf("\n");
-
-			if(!redis_del(&redis, keybuf, &exists)) goto end;
-			fflush(stdout);
-			fflush(stderr);
 		}
 		
 		snprintf(keybuf, sizeof(keybuf), "%s:%ld:response", key, nextId);
@@ -265,11 +253,10 @@ int main(int argc, const char *argv[]) {
 			}
 			printf("\n");
 
-			if(!redis_del(&redis, keybuf, &exists)) goto end;
-			fflush(stdout);
-			fflush(stderr);
 		}
 
+		snprintf(keybuf, sizeof(keybuf), "%s:%ld*", key, nextId);
+		if(!redis_del_keys(&redis, keybuf, NULL)) goto end;
 		t3 = microtime();
 
 		printf("%s=====================================================================%s\n", color_yellow, color_cls);
