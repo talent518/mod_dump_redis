@@ -33,8 +33,8 @@ app.post('/send', function(req, res) {
 app.set('port', process.env.PORT || 6001);
 const http = require('http');
 const server = http.createServer(app);
-server.listen(6001, function() {
-	console.log('Server is running!');
+server.listen(app.get('port'), function() {
+	console.log('Server is running, listen on port ' + app.get('port'));
 });
 
 const io = IO(server);
