@@ -71,6 +71,11 @@ io.on('connection', function(socket) {
 		console.log('time:', socket.room, socket.name, t);
 		io.to(socket.room).emit('time', {name:socket.name, time:t});
 	});
+	socket.on('off', function(off) {
+		redis.set(socket.room + ':off', off, function(err, result) {
+			io.to(socket.room).emit('off', {name: socket.name, off:off, result: result});
+		});
+	});
 });
 
 const getResponse = function(key, id, info) {

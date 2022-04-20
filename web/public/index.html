@@ -11,6 +11,8 @@
         <button id="j-connect" class="btn btn-primary mx-3" type="button">Open</button>
         <button id="j-disconnect" class="btn btn-primary mr-3" type="button" disabled="disabled">Close</button>
         <button id="j-time" class="btn btn-primary" type="button" disabled="disabled">Get server time</button>
+        <button id="j-on" class="btn btn-primary" type="button" disabled="disabled">Turn on</button>
+        <button id="j-off" class="btn btn-primary" type="button" disabled="disabled">Turn off</button>
         <span class="label">Name: <span id="j-name" class="name"></span></span>
     </div>
     <div class="row msg">
@@ -92,14 +94,14 @@
                 $('#j-message-box').prepend('<p>' + time() + ' <span class="success">Connected</span></p>');
                 $('#j-connect').attr('disabled', true);
                 $('#j-room').attr('readonly', true);
-                $('#j-disconnect,#j-time,#j-submit').attr('disabled',false);
+                $('#j-disconnect,#j-time,#j-on,#j-off,#j-submit').attr('disabled',false);
                 sock = this;
             });
             sock.on('disconnect', function() {
                 $('#j-message-box').prepend('<p>' + time() + ' <span class="info">Disconnected</span></p>');
                 $('#j-connect').attr('disabled', false);
                 $('#j-room').attr('readonly', false);
-                $('#j-disconnect,#j-time,#j-submit').attr('disabled', true);
+                $('#j-disconnect,#j-time,#j-on,#j-off,#j-submit').attr('disabled', true);
                 sock.close();
                 sock = false;
             });
@@ -117,6 +119,9 @@
             });
             sock.on('time', function(msg) {
                 $('#j-message-box').prepend('<p>' + time() + ' <span class="bold">' + msg.name + '</span> Server time is ' + msg.time + '</p>');
+            });
+            sock.on('off', function(msg) {
+                $('#j-message-box').prepend('<p>' + time() + ' <span class="bold">' + msg.name + '</span> Set off: ' + msg.off + ', Result: ' + msg.result + '</p>');
             });
             sock.on('chat', function(msg) {
                 if(msg === 'HELO') return;
@@ -143,6 +148,14 @@
         $('#j-time').click(function() {
             $('#j-message-box').prepend('<p>' + time() + ' <span class="info">Getting server time ...</span></p>');
             sock.emit('time');
+        });
+        $('#j-on').click(function() {
+            $('#j-message-box').prepend('<p>' + time() + ' <span class="info">Turn on ...</span></p>');
+            sock.emit('off', 0);
+        });
+        $('#j-off').click(function() {
+            $('#j-message-box').prepend('<p>' + time() + ' <span class="info">Turn off ...</span></p>');
+            sock.emit('off', 1);
         });
 
         $('#j-chat-form').submit(function() {
