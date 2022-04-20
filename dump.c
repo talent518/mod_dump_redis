@@ -189,12 +189,9 @@ int main(int argc, const char *argv[]) {
 
 	t = microtime();
 	while(is_running) {
-		if(!redis_lpop_int(&redis, key, &nextId)) goto end;
-		
-		if(nextId <= 0) {
-			usleep(10000);
-			continue;
-		}
+		if(!redis_blpop_int(&redis, key, 1, &nextId)) goto end;
+
+		if(nextId <= 0) continue;
 
 		t2 = microtime();
 		

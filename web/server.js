@@ -127,8 +127,8 @@ const getInfo = function(key, id) {
 const popId = function(key) {
 	runs[key] = true;
 
-	redis.lpop(key, function(err, result) {
-		if(result) getInfo(key, result);
+	redis.blpop(key, 1, function(err, result) {
+		if(result) getInfo(key, parseInt(result[1]));
 		else nextId(key, err, result);
 	});
 };
@@ -139,10 +139,7 @@ const nextId = function(key, err, info) {
 	if(info) io.to(key).emit('dump', info);
 
 	if(keys[key] > 0) {
-		if(info) popId(key);
-		else setTimeout(function() {
-			popId(key);
-		}, 10);
+		popId(key);
 	} else {
 		runs[key] = false;
 	}
