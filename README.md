@@ -37,3 +37,11 @@ DumpRedisRule <regex>...
 
 * regex: regular expression
 
+### 8. Redis dynamic turn on or off
+
+* Turn off
+redis-cli -n <database> set "<key>:off" 1
+
+* Turn on
+redis-cli -n <database> set "<key>:off" 0
+

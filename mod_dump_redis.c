@@ -70,6 +70,10 @@ static apr_status_t dump_redis_db_cleanup (void *data) {
 }
 
 static bool open_db_handle(request_rec *r, dump_redis_config_rec *m) {
+	if(!m->enable) {
+		return false;
+	}
+
 	if(m->redis.fp) {
 		if(redis_ping(&m->redis)) return true;
 
@@ -94,7 +98,20 @@ static bool open_db_handle(request_rec *r, dump_redis_config_rec *m) {
 	}
 
 	if(m->insertId <= 0) {
-		char keybuf[256];
+		char keybuf[256], *off = NULL;
+
+		snprintf(keybuf, sizeof(keybuf), "%s:off", m->key ? m->key : "apacheDump");
+
+		if(redis_get(&m->redis, keybuf, &off) && off) {
+			int i = atoi(off);
+
+			free(off);
+			
+			if(i) {
+				m->enable = 0;
+				goto err;
+			}
+		}
 
 		snprintf(keybuf, sizeof(keybuf), "%s:incr", m->key ? m->key : "apacheDump");
 
