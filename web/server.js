@@ -20,7 +20,7 @@ app.use(logger('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
-app.use(express.static('public'));
+app.use(express.static(__dirname + '/public', {maxage: '2h'}));
 app.post('/send', function(req, res) {
 	const room = req.body.room;
 	const name = req.body.name;

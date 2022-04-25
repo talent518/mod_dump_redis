@@ -3,9 +3,60 @@
 <head>
     <meta charset="UTF-8">
     <title>Redis Dump</title>
+
+    <style type="text/css">
+        input::-webkit-input-placeholder, textarea::-webkit-input-placeholder {
+            color: #999;
+        }
+
+        input:-moz-placeholder, textarea:-moz-placeholder {
+            color: #999;
+        }
+
+        input::-moz-placeholder, textarea::-moz-placeholder {
+            color: #999;
+        }
+
+        input:-ms-input-placeholder, textarea:-ms-input-placeholder {
+            color: #999;
+        }
+
+        body{font-size:14px;}
+        .chat-room {position:relative;line-height:34px;}
+        .chat-room * {box-sizing: border-box;vertical-align:text-middle;}
+        .chat-room h3{margin:0;}
+        .chat-room h5{position:relative;margin:0;font-size:14px;height:36px;overflow:hidden;}
+        .chat-room h5 span.right{float:right;color:blue;cursor:pointer;}
+        .chat-room h5 span.left{float:left;}
+        .chat-room input:focus,.chat-room button:focus {outline:none;}
+        .chat-room input {margin:0;height:34px;line-height:35px;border:1px gray solid;border-radius:3px;}
+        .chat-room input.left{float:left;width:100px;}
+        .chat-room input.filter{position:absolute;left:60px;right:40px;top:5px;height:24px;line-height:25px;}
+        .chat-room button {margin:0;padding:0 10px;height:34px;line-height:35px;border:1px #ccc solid;border-radius:3px;background:#eee;cursor:pointer;}
+        .chat-room button.right{float:right;width:70px;}
+        .chat-room .msg{margin-top:10px;}
+        .chat-room .w100 {margin:0 75px 0 105px;}
+        .chat-room .w100 input {width:100%;}
+        .chat-room .dump > p{cursor:pointer;}
+        .chat-room .dump .right{float:right;}
+        .chat-room .dump .full {display:none;border:1px #ccc solid;padding:0 5px;}
+        .chat-room .dump .pre{width:100%;overflow-x:hidden;overflow-y:auto;max-height:500px;white-space:pre-wrap;word-break:break-all;line-height:20px;}
+        .chat-room .history {display:none;position:absolute;left:60px;right:40px;margin-top:-5px;border:1px #999 solid;border-radius:3px;background:#fff;}
+        .chat-room .history > p{margin:0;padding:0 5px;border-top:1px #ccc solid;cursor:pointer;}
+        .chat-room .history > p:hover{background:#f2f2f2;}
+        .chat-room .history > p:first-child{border:0 none;}
+        .chat-room .error{color:red;}
+        .message-box p {margin:0;line-height:25px;}
+        .message-box .danger{color:#f60;}
+        .message-box .success{color:#0a0;}
+        .message-box .info{color:#06f;}
+        .message-box .bold{font-weight:bold;}
+    </style>
+    <script type="text/javascript" src="jquery.min.js"></script>
+    <script type="text/javascript" src="socket.io/socket.io.js"></script>
 </head>
 <body>
-<form class="chat-room" id="j-chat-form">
+<div class="chat-room">
     <h3>Redis Dump</h3>
     <div class="row">
         <button id="j-connect" class="btn btn-primary mx-3" type="button">Open</button>
@@ -15,63 +66,33 @@
         <button id="j-off" class="btn btn-primary" type="button" disabled="disabled">Turn off</button>
         <span class="label">Name: <span id="j-name" class="name"></span></span>
     </div>
-    <div class="row msg">
+    <form class="row msg" id="j-chat-form">
         <input id="j-room" class="left" type="text" value="apacheDump" />
         <button id="j-submit" class="right" type="submit" disabled="disabled">Send</button>
         <div class="w100"><input id="j-message" type="text" value="" placeholder="Please input message content" /></div>
-    </div>
-    <h5><span onclick="$('#j-message-box').empty()">Clear</span>Message: </h5>
+    </form>
+    <h5><span class="right" onclick="$('#j-message-box').empty()">Clear</span><span class="left">Message: </span><input id="j-filter" class="filter" type="text" value=""/></h5>
+    <div id="j-filter-history" class="history" title="Press Ctrl and click the history you want to delete"></div>
+    <div id="j-filter-error" class="error"></div>
     <div id="j-message-box" class="message-box"></div>
-</form>
-<style type="text/css">
-    input::-webkit-input-placeholder, textarea::-webkit-input-placeholder {
-        color: #999;
-    }
-
-    input:-moz-placeholder, textarea:-moz-placeholder {
-        color: #999;
-    }
-
-    input::-moz-placeholder, textarea::-moz-placeholder {
-        color: #999;
-    }
-
-    input:-ms-input-placeholder, textarea:-ms-input-placeholder {
-        color: #999;
-    }
-
-    body{font-size:14px;}
-    .chat-room {line-height:34px;}
-    .chat-room * {box-sizing: border-box;vertical-align:bottom;}
-    .chat-room h3{margin:0;}
-    .chat-room h5{margin:0;font-size:14px;}
-    .chat-room h5 span{float:right;color:blue;cursor:pointer;}
-    .chat-room input:focus,.chat-room button:focus {outline:none;}
-    .chat-room input {margin:0;height:34px;line-height:35px;border:1px gray solid;border-radius:3px;}
-    .chat-room input.left{float:left;width:100px;}
-    .chat-room button {margin:0;padding:0 10px;height:34px;line-height:35px;border:1px #ccc solid;border-radius:3px;background:#eee;cursor:pointer;}
-    .chat-room button.right{float:right;width:70px;}
-    .chat-room .msg{margin-top:10px;}
-    .chat-room .w100 {margin:0 75px 0 105px;}
-    .chat-room .w100 input {width:100%;}
-    .chat-room .dump > p{cursor:pointer;}
-    .chat-room .dump .right{float:right;}
-    .chat-room .dump .full {display:none;border:1px #ccc solid;padding:0 5px;}
-    .chat-room .dump .pre{width:100%;overflow-x:hidden;overflow-y:auto;max-height:500px;white-space:pre-wrap;word-break:break-all;line-height:20px;}
-    .message-box p {margin:0;line-height:25px;}
-    .message-box .danger{color:#f60;}
-    .message-box .success{color:#0a0;}
-    .message-box .info{color:#06f;}
-    .message-box .bold{font-weight:bold;}
-</style>
-<script type="text/javascript" src="jquery.min.js"></script>
-<script type="text/javascript" src="socket.io/socket.io.js"></script>
+</div>
 <script type="text/javascript">
-    document.body.onload = function() {
+    (function($) {
         let sock = false;
+        const storage = (function() {
+            let json;
+            try {
+                json = JSON.parse(localStorage.getItem('apache-redis-dump'));
+            } catch(e) {}
+            return json || {room:'apacheDump', filter:'', history: []};;
+        })();
         let room = false;
+        let filter = false;
+        let filterTimer = false;
         const name = 'N' + parseInt(Math.random() * 100000);
         $('#j-name').text(name);
+        $('#j-room').val(storage.room);
+        $('#j-filter').val(storage.filter);
         function time() {
             const d = new Date();
             const t = [d.getHours(), d.getMinutes(), d.getSeconds()];
@@ -95,6 +116,7 @@
                 $('#j-connect').attr('disabled', true);
                 $('#j-room').attr('readonly', true);
                 $('#j-disconnect,#j-time,#j-on,#j-off,#j-submit').attr('disabled',false);
+                storage.room = room;
                 sock = this;
             });
             sock.on('disconnect', function() {
@@ -130,7 +152,7 @@
                 $('#j-message-box').prepend('<p>' + time() + ' <span class="bold">' + msg.name + '</span> ' + msg.message + '</p>');
             });
             sock.on('dump', function(msg) {
-            	const $p = $('<div class="dump"></div>');
+            	const $p = $('<div class="dump"></div>').attr('id', 'j-dump-'+msg.dumpId).data('msg', msg);
             	const $p1 = $('<p></p>').html('<span class="right">' + msg.runTime + '</span>' + time() + ' ' + msg.dumpId + ' <span class="bold">' + msg.method + '</span> ' + msg.scheme + '://' + msg.serverName + (msg.scheme === 'http' && msg.serverPort === 80 ? '' : (msg.scheme === 'https' && msg.serverPort === 443 ? '' : ':' + msg.serverPort)) + msg.url).click(function() {
             		$(this).next('.full').toggle();
             	}).appendTo($p);
@@ -139,9 +161,58 @@
 		        	$p2.append('<p class="bold">' + key + ':</p>');
 		        	$p2.append($('<p class="pre"></p>').text(val));
             	});
+                if(filter && !filter(msg)) {
+                    $p.hide();
+                } else {
+                    $p.show();
+                }
                 $('#j-message-box').prepend($p);
             });
         });
+        $('#j-filter').focus(function() {
+            $('#j-filter-history').show();
+        }).blur(function() {
+            if(filterTimer) clearTimeout(filterTimer);
+            filterTimer = setTimeout(function() {
+                filterTimer = false;
+                $('#j-filter-history').hide();
+            }, 100);
+        }).change(function(e) {
+            const val = $(this).val();
+
+            $('#j-filter-error').text('');
+
+            storage.filter = val;
+
+            if(val.length == 0) {
+                filter = false;
+                $('#j-message-box .dump').show();
+            } else {
+                try {
+                    filter = new Function('msg', 'return ' + val + ';');
+                    $('#j-message-box .dump').each(function() {
+                        const msg = $(this).data('msg');
+                        if(filter && !filter(msg)) {
+                            $(this).hide();
+                        } else {
+                            $(this).show();
+                        }
+                    });
+                    if(storage.history.indexOf(val) == -1) {
+                        storage.history.unshift(val);
+                        $('<p/>').text(val).prependTo('#j-filter-history');
+                    }
+                } catch(e) {
+                    $('#j-filter-error').text(val + ': ' + e.message);
+                    $('#j-message-box .dump').show();
+                }
+            }
+        }).keydown(function(e) {
+            if(e.keyCode == 13) {
+                $(this).change();
+                return false;
+            }
+        }).change();
         $('#j-disconnect').click(function() {
             sock.close();
         });
@@ -158,8 +229,8 @@
             sock.emit('off', 1);
         });
 
-        $('#j-chat-form').submit(function() {
-            var msg = $.trim($('#j-message').val());
+        $('#j-chat-form').submit(function(e) {console.log(e);
+            const msg = $.trim($('#j-message').val());
             if(msg.length == 0) {
                 $('#j-message-box').prepend('<p>' + time() + ' <span class="danger">Message is not empty</span></p>');
                 return false;
@@ -178,7 +249,33 @@
             });
             return false;
         });
-    };
+
+        $('#j-filter-history').on('click', '>p', function(e) {
+            const val = $(this).text();
+
+            if(filterTimer) {
+                clearTimeout(filterTimer);
+                filterTimer = false;
+            }
+            $(this).parent().hide();
+
+            if(e.ctrlKey) {
+                const i = storage.history.indexOf(val);
+                if(i != -1) storage.history.splice(i, 1);
+                $(this).remove();
+                $('#j-filter').focus();
+            } else {
+                $('#j-filter').val(val).change();
+            }
+        });
+        storage.history.forEach(function(val) {
+            $('<p/>').text(val).prependTo('#j-filter-history');
+        });
+
+        $(window).unload(function() {
+            localStorage.setItem('apache-redis-dump', JSON.stringify(storage));
+        });
+    })(jQuery);
 </script>
 </body>
 </html>

@@ -303,28 +303,18 @@ static void dump_redis_record_post_or_response(request_rec *r, dump_redis_config
 
 	snprintf(keybuf, sizeof(keybuf), "%s:%ld:%s", m->key ? m->key : "apacheDump", m->insertId, is_post ? "post" : "response");
 
-	if(!redis_send(&m->redis, "ssS", "append", keybuf, buffer, buffer_length)) {
-		ap_log_rerror (APLOG_MARK, APLOG_ERR, 0, r, "REDIS ERROR(append send): %s", redis_error(&m->redis));
-		return;
-	}
-	if(!redis_recv(&m->redis, REDIS_FLAG_INT)) {
-		ap_log_rerror (APLOG_MARK, APLOG_ERR, 0, r, "REDIS ERROR(append recv): %s", redis_error(&m->redis));
-		return;
+	if(!redis_append_ex(&m->redis, keybuf, buffer, buffer_length)) {
+		ap_log_rerror (APLOG_MARK, APLOG_ERR, 0, r, "REDIS ERROR(append): %s", redis_error(&m->redis));
 	}
 }
 
 static bool dump_redis_record_insert_id(request_rec *r, dump_redis_config_rec *m) {
-	if(!redis_send(&m->redis, "ssD", "rpush", m->key ? m->key : "apacheDump", m->insertId)) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "REDIS ERROR(rpush send): %s", redis_error(&m->redis));
+	if(redis_rpush_int(&m->redis, m->key ? m->key : "apacheDump", m->insertId)) {
+		return true;
+	} else {
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "REDIS ERROR(rpush): %s", redis_error(&m->redis));
 		return false;
 	}
-
-	if(!redis_recv(&m->redis, REDIS_FLAG_INT)) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "REDIS ERROR(rpush recv): %s", redis_error(&m->redis));
-		return false;
-	}
-
-	return true;
 }
 
 static void dump_redis_record(request_rec *r, dump_redis_config_rec *sec, bool is_post, char *buffer, apr_size_t len) {
